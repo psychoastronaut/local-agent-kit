@@ -58,16 +58,29 @@ def prepare(task_dir, work):
     if not os.path.exists(os.path.join(work, ".gitignore")):
         open(os.path.join(work, ".gitignore"), "w").write(GITIGNORE)
     shutil.rmtree(os.path.join(work, ".git"), ignore_errors=True)
+    clean_bytecode(work)
     git(work, "init", "-q", "-b", "main")
     git(work, "add", "-A")
     git(work, "commit", "-q", "-m", "fixture")
 
 
+def clean_bytecode(work):
+    """Drop __pycache__ dirs: equal-size files with equal mtimes (fresh clones,
+    solution overlays) would otherwise reuse stale .pyc and run the old code."""
+    for root, dirs, _ in os.walk(work):
+        for d in list(dirs):
+            if d == "__pycache__":
+                shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+                dirs.remove(d)
+
+
 def run_check(task_dir, work, timeout=300):
-    env = dict(os.environ, TASK_DIR=task_dir)
+    clean_bytecode(work)
+    env = dict(os.environ, TASK_DIR=task_dir, PYTHONDONTWRITEBYTECODE="1")
     try:
         r = subprocess.run(["bash", os.path.join(task_dir, "check.sh")], cwd=work, env=env,
                            capture_output=True, text=True, timeout=timeout)
+        clean_bytecode(work)
         return r.returncode == 0, (r.stdout + r.stderr)[-1500:]
     except subprocess.TimeoutExpired:
         return False, "check.sh timed out"
@@ -83,6 +96,7 @@ def run_agent(cmd, prompt, work, timeout, log_path):
     status = "done"
     with open(log_path, "w") as log:
         p = subprocess.Popen(full, shell=True, cwd=work, stdin=subprocess.DEVNULL,
+                             env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"),
                              stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         try:
             p.wait(timeout)

@@ -1,4 +1,5 @@
 # Shared helpers sourced by every check.sh.
+export PYTHONDONTWRITEBYTECODE=1
 # Contract: cwd = the agent's working copy, $TASK_DIR = the task directory.
 run_pytest() {
   if command -v pytest >/dev/null 2>&1; then pytest -q -p no:cacheprovider "$@"
