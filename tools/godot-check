@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# godot-check: validate a Godot 4 project in one go. Exit 0 if clean, 1 on errors.
+# Usage: godot-check [project-dir]    (default: cwd, where project.godot lives)
+#      godot-check . res://dir/file.gd   (check a single script, faster)
+#
+# 1) parse every .gd (--check-only)   2) run the main scene headless for ~2 s and
+# capture runtime errors (undeclared identifier, missing node, ...).
+set -uo pipefail
+
+proj="${1:-.}"
+cd "$proj" || { echo "no such directory: $proj"; exit 2; }
+[ -f project.godot ] || { echo "no project.godot in $(pwd)"; exit 2; }
+
+fail=0
+pat='SCRIPT ERROR|Parse Error|ERROR:|Failed to load|Identifier .* not declared|Invalid (call|access)|Cannot infer'
+
+if [ $# -ge 2 ]; then
+  scripts=("${@:2}")
+else
+  mapfile -t scripts < <(find . -name '*.gd' -not -path './.godot/*' -not -path './addons/*' | sed 's|^\./|res://|' | sort)
+fi
+
+echo "== parsing ${#scripts[@]} script(s)"
+for s in "${scripts[@]}"; do
+  out=$(timeout 30 godot --headless --path . --check-only --script "$s" 2>&1 | grep -E "$pat" || true)
+  if [ -n "$out" ]; then echo "[FAILED] $s"; echo "$out" | sed 's/^/    /'; fail=1; fi
+done
+
+echo "== headless run of the main scene (~2 s)"
+out=$(timeout 40 godot --headless --path . --quit-after 120 2>&1 | grep -E -A2 "$pat" || true)
+if [ -n "$out" ]; then echo "$out" | sed 's/^/    /'; fail=1; fi
+
+[ $fail -eq 0 ] && echo "OK: no parse or runtime errors." || echo "ERRORS FOUND: fix them and run godot-check again."
+exit $fail

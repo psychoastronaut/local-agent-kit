@@ -1,0 +1,64 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "instructions": ["@@LAK_OPENCODE_DIR@@/AGENTS.md"],
+
+  // One model for every role. llama-swap keeps ONE model on the GPU; switching
+  // aliases between main / small / title / compaction costs a 25-40 s reload.
+  "model": "local/@@LAK_MODEL_ALIAS@@",
+  "small_model": "local/@@LAK_MODEL_ALIAS@@",
+
+  "provider": {
+    "local": {
+      "name": "llama-swap (local)",
+      // The key MUST be "npm". The older "package" key is silently ignored.
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://@@LAK_HOST@@:@@LAK_PORT@@/v1",
+        "apiKey": "sk-local"
+      },
+      "models": {
+        "@@LAK_MODEL_ALIAS@@": {
+          "name": "@@LAK_MODEL_ALIAS@@ (llama.cpp via llama-swap)",
+          "tool_call": true,
+          "reasoning": true,
+          "attachment": false,
+          "interleaved": { "field": "reasoning_content" },
+          // limit.context MUST equal llama-server's -c, otherwise compaction
+          // loops (too small) or the server truncates (too large).
+          "limit": { "context": @@LAK_CTX@@, "output": @@LAK_OUTPUT_LIMIT@@ }
+        }
+      }
+    }
+  },
+
+  // Auto-compact with a 24k-token margin below the window.
+  "compaction": { "auto": true, "buffer": 24000 },
+
+  // This is a speed bump, NOT a sandbox. Patterns are matched per subcommand and
+  // anchored, so `FOO=1 rm -fr x` slipped past a plain `rm -rf*` rule; the extra
+  // patterns below catch the cases we found, but scripts, `python -c` and
+  // aliases still bypass it. Run agents in a container/VM for real isolation.
+  // In headless `opencode run`, "ask" is an automatic reject.
+  "permission": {
+    "bash": {
+      "*": "allow",
+      "*rm -*r*": "ask",
+      "rm *-*r*": "ask",
+      "rm *-*R*": "ask",
+      "*rm -*R*": "ask",
+      "*rm *--recursive*": "ask",
+      "*/rm *": "ask",
+      "*=* rm *": "ask",
+      "git *push*": "ask",
+      "git *reset --hard*": "ask",
+      "git *clean*": "ask",
+      "bash -c*": "ask",
+      "sh -c*": "ask",
+      "zsh -c*": "ask",
+      "find *-delete*": "ask",
+      "*sudo *": "ask"
+    },
+    "external_directory": "ask"
+  }
+}

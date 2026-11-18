@@ -1,0 +1,4 @@
+#!/bin/sh
+# ocrun: `opencode run` that cannot hang. opencode blocks forever when stdin is an
+# open non-tty (CI, pipes, other agents), so stdin is always closed.
+exec opencode run "$@" </dev/null

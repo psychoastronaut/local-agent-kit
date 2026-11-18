@@ -1,0 +1,11 @@
+[Unit]
+Description=Preload the model into llama-swap so the first request is not cold
+After=lak-llama-swap.service
+Requires=lak-llama-swap.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'sleep 4; curl -s --max-time 200 http://@@LAK_HOST@@:@@LAK_PORT@@/v1/chat/completions -H "content-type: application/json" -d "{\"model\":\"@@LAK_MODEL_ALIAS@@\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}" >/dev/null 2>&1'
+
+[Install]
+WantedBy=default.target

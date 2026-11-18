@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# claude-local: run Claude Code against a local llama-swap endpoint.
+#
+# Claude Code speaks the Anthropic Messages API; llama-swap exposes /v1/messages,
+# so ANTHROPIC_BASE_URL is all that is needed. Settings live in an isolated
+# config dir so your normal Claude Code setup is untouched.
+#
+# Usage:  claude-local [claude args...]
+# Env:    LAK_PORT, LAK_HOST, LAK_MODEL_ALIAS (read from config.env if present)
+#         LAK_CLAUDE_DIR   isolated config dir (default ~/.claude-local)
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cfg="${LAK_CONFIG:-$here/../config.env}"
+# shellcheck disable=SC1090
+[ -f "$cfg" ] && . "$cfg"
+
+export CLAUDE_CONFIG_DIR="${LAK_CLAUDE_DIR:-$HOME/.claude-local}"
+export ANTHROPIC_BASE_URL="http://${LAK_HOST:-127.0.0.1}:${LAK_PORT:-8080}"
+export ANTHROPIC_API_KEY="local-not-used"   # any string; llama-swap ignores it
+
+# One GPU = one loaded model. Map EVERY tier to the same alias, or llama-swap
+# reloads the weights from disk whenever Claude Code switches tiers.
+alias_="${LAK_MODEL_ALIAS:-qwen36}"
+export ANTHROPIC_MODEL="$alias_"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="$alias_"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="$alias_"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="$alias_"
+export ANTHROPIC_SMALL_FAST_MODEL="$alias_"
+
+# Without this the per-request attribution header changes the prompt prefix and
+# invalidates the KV/prompt cache every turn (roughly 90% slower).
+export CLAUDE_CODE_ATTRIBUTION_HEADER=0
+
+# Local models have smaller windows than the 200K Claude Code assumes.
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS="${LAK_OUTPUT_LIMIT:-8192}"
+
+exec claude "$@"

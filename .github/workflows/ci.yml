@@ -1,0 +1,25 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Shell syntax
+        run: |
+          for f in bin/lak bin/ocrun tools/godot-check claude-code/claude-local \
+                   claude-code/hooks/godot-postedit.sh eval/tasks/*/check.sh eval/tasks/_lib.sh; do
+            bash -n "$f"
+          done
+      - name: Python syntax
+        run: python3 -m py_compile scripts/*.py eval/run_eval.py
+      - name: Render templates
+        run: |
+          LAK_MODEL_FILE=x.gguf LAK_CTX=4096 LAK_NCPUMOE=1 bin/lak render
+          python3 -c "import json,sys; sys.path.insert(0,'scripts'); import doctor; json.loads(doctor.strip_jsonc(open('out/opencode/opencode.jsonc').read()))"
+      - name: Eval task self-test (no GPU or model needed)
+        run: |
+          pip install pytest
+          python3 eval/run_eval.py --self-test

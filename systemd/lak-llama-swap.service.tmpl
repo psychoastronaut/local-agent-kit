@@ -1,0 +1,12 @@
+[Unit]
+Description=llama-swap: local OpenAI/Anthropic endpoint for coding agents
+After=network.target
+
+[Service]
+Environment=PATH=@@LAK_CUDA_HOME@@/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=@@LAK_SWAP_BIN@@ --config @@LAK_LLAMA_SWAP_YAML@@ --listen @@LAK_HOST@@:@@LAK_PORT@@
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

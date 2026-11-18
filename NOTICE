@@ -1,0 +1,6 @@
+local-agent-kit is MIT licensed (see LICENSE).
+
+llama-swap/templates/qwen36-tools-fixed.jinja is derived from the Qwen3.6 chat template
+published by Qwen (Apache License 2.0) with tool-calling fixes from Unsloth's GGUF
+release (Apache License 2.0). It remains under the Apache License 2.0; the full text is
+in licenses/APACHE-2.0.txt. Modifications are described in the file header.

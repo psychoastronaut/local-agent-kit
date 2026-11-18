@@ -1,0 +1,238 @@
+{
+  "hardware": {
+    "gpu": "RTX 3060 12 GB",
+    "cpu": "Ryzen 5 3600",
+    "ram": "32 GB DDR4-3200"
+  },
+  "software": {
+    "llama_cpp_build": 12407,
+    "opencode": "1.19.6"
+  },
+  "model": {
+    "name": "Qwen3.6-35B-A3B",
+    "quant": "UD-Q4_K_M",
+    "flags": "-ngl 99 -ctk q8_0 -ctv q8_0 -fa on --reasoning-budget 256 --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --presence-penalty 0 --repeat-penalty 1.0 --jinja"
+  },
+  "tune": [
+    {
+      "ctx": 131072,
+      "n_cpu_moe": 27,
+      "vram_gb": 10.9,
+      "prefill_tps": 752,
+      "decode_tps": 41.7
+    },
+    {
+      "ctx": 131072,
+      "n_cpu_moe": 30,
+      "vram_gb": 9.6,
+      "decode_tps": 39.8
+    },
+    {
+      "ctx": 65536,
+      "n_cpu_moe": 30,
+      "vram_gb": 8.76,
+      "decode_tps": 39.6
+    },
+    {
+      "ctx": 131072,
+      "n_cpu_moe": 24,
+      "status": "OOM"
+    }
+  ],
+  "ddr4_2666_to_3200_decode_gain_pct": 37,
+  "eval_python": {
+    "agent_cmd": "opencode run -m local/{alias} {prompt}",
+    "repeat": 2,
+    "results": [
+      {
+        "task": "add-feature-tags",
+        "run": 1,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 89.1,
+        "files_changed": 2,
+        "diff_summary": "2 files changed, 89 insertions(+)"
+      },
+      {
+        "task": "add-feature-tags",
+        "run": 2,
+        "passed": false,
+        "agent_status": "done",
+        "wall_s": 88.3,
+        "files_changed": 2,
+        "diff_summary": "2 files changed, 85 insertions(+)"
+      },
+      {
+        "task": "bugfix-checkout",
+        "run": 1,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 64.5,
+        "files_changed": 2,
+        "diff_summary": "2 files changed, 4 insertions(+), 3 deletions(-)"
+      },
+      {
+        "task": "bugfix-checkout",
+        "run": 2,
+        "passed": false,
+        "agent_status": "done",
+        "wall_s": 69.7,
+        "files_changed": 1,
+        "diff_summary": "1 file changed, 3 insertions(+), 2 deletions(-)"
+      },
+      {
+        "task": "cli-wordstat",
+        "run": 1,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 230.2,
+        "files_changed": 3,
+        "diff_summary": "3 files changed, 128 insertions(+), 5 deletions(-)"
+      },
+      {
+        "task": "cli-wordstat",
+        "run": 2,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 208.8,
+        "files_changed": 2,
+        "diff_summary": "2 files changed, 141 insertions(+), 2 deletions(-)"
+      },
+      {
+        "task": "fix-pagination",
+        "run": 1,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 64.7,
+        "files_changed": 1,
+        "diff_summary": "1 file changed, 1 insertion(+), 1 deletion(-)"
+      },
+      {
+        "task": "fix-pagination",
+        "run": 2,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 65.2,
+        "files_changed": 1,
+        "diff_summary": "1 file changed, 1 insertion(+), 1 deletion(-)"
+      },
+      {
+        "task": "question-retries",
+        "run": 1,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 56.7,
+        "files_changed": 1,
+        "diff_summary": "1 file changed, 3 insertions(+)"
+      },
+      {
+        "task": "question-retries",
+        "run": 2,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 55.9,
+        "files_changed": 1,
+        "diff_summary": "1 file changed, 3 insertions(+)"
+      },
+      {
+        "task": "refactor-formatters",
+        "run": 1,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 90.8,
+        "files_changed": 4,
+        "diff_summary": "4 files changed, 16 insertions(+), 35 deletions(-)"
+      },
+      {
+        "task": "refactor-formatters",
+        "run": 2,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 109.7,
+        "files_changed": 4,
+        "diff_summary": "4 files changed, 16 insertions(+), 35 deletions(-)"
+      }
+    ]
+  },
+  "eval_godot_private": {
+    "project": "a real 8-script Godot 4.7 game (private)",
+    "first_batch": [
+      {
+        "task": "godot3-idiom",
+        "run": 1,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 78.4,
+        "files_changed": 2,
+        "diff_summary": "2 files changed, 3 insertions(+), 2 deletions(-)"
+      },
+      {
+        "task": "godot3-idiom",
+        "run": 2,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 92.6,
+        "files_changed": 2,
+        "diff_summary": "2 files changed, 3 insertions(+), 2 deletions(-)"
+      },
+      {
+        "task": "signal-connection",
+        "run": 1,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 120.4,
+        "files_changed": 5,
+        "diff_summary": "5 files changed, 24 insertions(+)"
+      },
+      {
+        "task": "signal-connection",
+        "run": 2,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 121.7,
+        "files_changed": 5,
+        "diff_summary": "5 files changed, 29 insertions(+)"
+      },
+      {
+        "task": "typed-export",
+        "run": 1,
+        "passed": false,
+        "agent_status": "done",
+        "wall_s": 167.9,
+        "files_changed": 3,
+        "diff_summary": "3 files changed, 27 insertions(+), 2 deletions(-)"
+      },
+      {
+        "task": "typed-export",
+        "run": 2,
+        "passed": false,
+        "agent_status": "done",
+        "wall_s": 58.0,
+        "files_changed": 1,
+        "diff_summary": "1 file changed, 1 insertion(+)"
+      }
+    ],
+    "typed_export_rerun_after_relaxing_check": [
+      {
+        "task": "typed-export",
+        "run": 1,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 95.5,
+        "files_changed": 2,
+        "diff_summary": "2 files changed, 8 insertions(+), 2 deletions(-)"
+      },
+      {
+        "task": "typed-export",
+        "run": 2,
+        "passed": true,
+        "agent_status": "done",
+        "wall_s": 84.9,
+        "files_changed": 2,
+        "diff_summary": "2 files changed, 11 insertions(+), 2 deletions(-)"
+      }
+    ],
+    "note": "private project, not reproducible"
+  },
+  "tune_note": "Throughput rows were measured manually with the same method as scripts/tune.py, not produced by it."
+}

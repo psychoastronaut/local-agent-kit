@@ -1,0 +1,24 @@
+# llama-swap config rendered by `lak render` from config.env.
+# Double-at markers around LAK_* names are filled in by scripts/render.py.
+# llama-swap serves OpenAI (/v1/chat/completions) AND Anthropic (/v1/messages)
+# on one port and loads the requested model on demand.
+#
+# NOTE: llama-swap does not hot-reload this file. Restart the service after edits.
+
+healthCheckTimeout: 300
+logLevel: info
+
+models:
+  @@LAK_MODEL_ALIAS@@:
+    cmd: >
+      @@LAK_LLAMA_BIN@@/llama-server
+      -m @@LAK_MODELS_DIR@@/@@LAK_MODEL_FILE@@
+      --alias @@LAK_MODEL_ALIAS@@
+      --host 127.0.0.1 --port @@LAK_UPSTREAM_PORT@@
+      -c @@LAK_CTX@@ -ngl 99 --n-cpu-moe @@LAK_NCPUMOE@@
+      -ctk q8_0 -ctv q8_0 -fa on
+      --reasoning-budget @@LAK_REASONING_BUDGET@@
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0
+      --presence-penalty 0 --repeat-penalty 1.0
+      --jinja --chat-template-file @@LAK_KIT_DIR@@/llama-swap/templates/qwen36-tools-fixed.jinja
+    proxy: http://127.0.0.1:@@LAK_UPSTREAM_PORT@@

@@ -1,0 +1,35 @@
+name: Hardware results
+description: Share your GPU/CPU/RAM numbers from `lak tune` and `lak eval`
+labels: [hardware-results]
+body:
+  - type: input
+    id: gpu
+    attributes: {label: GPU and VRAM, placeholder: "RTX 3060 12 GB"}
+    validations: {required: true}
+  - type: input
+    id: cpu_ram
+    attributes: {label: CPU and RAM (size, type, speed), placeholder: "Ryzen 5 3600, 32 GB DDR4-3200"}
+    validations: {required: true}
+  - type: input
+    id: model
+    attributes: {label: Model and quant, placeholder: "Qwen3.6-35B-A3B UD-Q4_K_M"}
+    validations: {required: true}
+  - type: input
+    id: llama
+    attributes: {label: llama.cpp build and agent version, placeholder: "llama.cpp b12407, opencode 1.19.6"}
+  - type: textarea
+    id: tune
+    attributes:
+      label: "`lak tune` table"
+      description: Paste the markdown table printed at the end.
+      render: markdown
+    validations: {required: true}
+  - type: textarea
+    id: eval
+    attributes:
+      label: "`lak eval` table"
+      description: Paste the table from results.md (optional but great).
+      render: markdown
+  - type: textarea
+    id: notes
+    attributes: {label: Notes, description: Anything surprising (OOMs, driver, kernel flags, BIOS memory profile).}

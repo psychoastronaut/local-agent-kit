@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# lak: single entry point for local-agent-kit.
+set -euo pipefail
+
+KIT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+CFG="${LAK_CONFIG:-$KIT/config.env}"
+# Config file provides defaults; variables already set in the environment win.
+saved="$(export -p | grep -E '^declare -x (LAK_[A-Z_]+|CUDA_ARCH)=' || true)"
+if [ -f "$CFG" ]; then
+  set -a; . "$CFG"; set +a
+elif [ -f "$KIT/config.env.example" ]; then
+  set -a; . "$KIT/config.env.example"; set +a
+fi
+[ -n "$saved" ] && eval "$saved"
+: "${LAK_HOST:=127.0.0.1}" "${LAK_PORT:=8080}" "${LAK_MODEL_ALIAS:=qwen36}"
+export KIT
+
+usage() {
+  cat <<USAGE
+lak: local LLMs as coding-agent backends
+
+  lak install-llama        clone + build llama.cpp with CUDA (no sudo)
+  lak install-swap         download the llama-swap binary
+  lak render [--apply [--yes]]  fill templates from config.env; writes to ./out/
+                           (--apply shows a diff, asks y/N, then installs into ~/.config
+                           with backups; units embed this checkout's absolute path)
+  lak tune [args]          sweep ctx x n-cpu-moe, print VRAM + tokens/s (scripts/tune.py -h)
+  lak doctor               diagnose the whole chain
+  lak eval [args]          run the agent eval harness (eval/run_eval.py -h)
+  lak ocrun <prompt...>    headless opencode run (stdin closed so it cannot hang)
+  lak claude [args]        Claude Code against the local endpoint
+
+Config: \$LAK_CONFIG or $KIT/config.env (see config.env.example)
+USAGE
+}
+
+install_llama() {
+  export PATH="${LAK_CUDA_HOME:-/usr/local/cuda}/bin:$PATH"
+  command -v nvcc >/dev/null || { echo "nvcc not found. Install the CUDA toolkit first (or set LAK_CUDA_HOME)." >&2; exit 1; }
+  command -v cmake >/dev/null || { echo "cmake not found." >&2; exit 1; }
+  echo "nvcc: $(nvcc --version | grep release)"
+  dir="${LAK_LLAMA_DIR:-$HOME/.local/share/local-agent-kit/llama.cpp}"
+  # Pinned to the commit the published numbers were measured with (build 12407).
+  # Set LAK_LLAMA_REF=master (or any tag/commit) to build something else.
+  ref="${LAK_LLAMA_REF:-e574a17b0}"
+  if [ ! -d "$dir/.git" ]; then
+    mkdir -p "$(dirname "$dir")"
+    git clone https://github.com/ggml-org/llama.cpp "$dir"
+  fi
+  git -C "$dir" fetch --tags origin
+  git -C "$dir" checkout "$ref"
+  cd "$dir"
+  cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCH:-86}" \
+        -DCMAKE_BUILD_TYPE=Release -DLLAMA_CURL=ON
+  cmake --build build --config Release -j"$(nproc)" --target llama-server llama-bench llama-cli
+  echo "OK: binaries in $dir/build/bin (set LAK_LLAMA_BIN accordingly)"
+}
+
+install_swap() {
+  dest="${LAK_SWAP_BIN:-$HOME/.local/bin/llama-swap}"
+  mkdir -p "$(dirname "$dest")"
+  tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+  # Pinned to the release the numbers were measured with. LAK_SWAP_VERSION=latest tracks upstream.
+  ver="${LAK_SWAP_VERSION:-v272}"
+  if [ "$ver" = latest ]; then
+    ver=$(curl -fsS https://api.github.com/repos/mostlygeek/llama-swap/releases/latest \
+          | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
+    [ -n "$ver" ] || { echo "could not determine latest llama-swap release" >&2; exit 1; }
+  fi
+  arch=$(uname -m); case "$arch" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac
+  name="llama-swap_${ver#v}_linux_${arch}.tar.gz"
+  base="https://github.com/mostlygeek/llama-swap/releases/download/${ver}"
+  echo "llama-swap $ver ($arch)"
+  curl -fsSL "$base/$name" -o "$tmp/$name"
+  if curl -fsSL "$base/llama-swap_${ver#v}_checksums.txt" -o "$tmp/sums.txt" 2>/dev/null; then
+    want=$(grep " $name\$" "$tmp/sums.txt" | awk '{print $1}')
+    have=$(sha256sum "$tmp/$name" | awk '{print $1}')
+    [ -n "$want" ] && [ "$want" = "$have" ] || { echo "checksum mismatch for $name" >&2; exit 1; }
+    echo "checksum ok"
+  else
+    echo "warning: no checksums file published for $ver; skipping verification" >&2
+  fi
+  tar xzf "$tmp/$name" -C "$tmp" llama-swap
+  install -m 755 "$tmp/llama-swap" "$dest"
+  echo "OK: $dest"
+}
+
+render() {
+  apply=0; yes=0
+  for a in "$@"; do case "$a" in --apply) apply=1;; --yes|-y) yes=1;; esac; done
+  out="$KIT/out"; mkdir -p "$out"
+  export LAK_KIT_DIR="$KIT"
+  export LAK_LLAMA_BIN="${LAK_LLAMA_BIN:-${LAK_LLAMA_DIR:-$HOME/.local/share/local-agent-kit/llama.cpp}/build/bin}"
+  export LAK_SWAP_BIN="${LAK_SWAP_BIN:-$HOME/.local/bin/llama-swap}"
+  export LAK_CUDA_HOME="${LAK_CUDA_HOME:-/usr/local/cuda}"
+  export LAK_UPSTREAM_PORT="${LAK_UPSTREAM_PORT:-9003}"
+  export LAK_REASONING_BUDGET="${LAK_REASONING_BUDGET:-256}" LAK_OUTPUT_LIMIT="${LAK_OUTPUT_LIMIT:-8192}"
+  export LAK_MODELS_DIR="${LAK_MODELS_DIR:-$HOME/models}"
+  : "${LAK_MODEL_FILE:?set LAK_MODEL_FILE in config.env}" "${LAK_CTX:?set LAK_CTX}" "${LAK_NCPUMOE:?set LAK_NCPUMOE}"
+  oc_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+  swap_dir="${XDG_CONFIG_HOME:-$HOME/.config}/local-agent-kit"
+  sd_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+  if [ "$apply" = 1 ]; then export LAK_OPENCODE_DIR="$oc_dir" LAK_LLAMA_SWAP_YAML="$swap_dir/llama-swap.yaml"
+  else export LAK_OPENCODE_DIR="$out/opencode" LAK_LLAMA_SWAP_YAML="$out/llama-swap.yaml"; fi
+  r="$KIT/scripts/render.py"
+  python3 "$r" "$KIT/llama-swap/llama-swap.yaml.tmpl" "$out/llama-swap.yaml"
+  python3 "$r" "$KIT/opencode/opencode.jsonc.tmpl" "$out/opencode/opencode.jsonc"
+  cp "$KIT/opencode/AGENTS.md" "$out/opencode/AGENTS.md"
+  python3 "$r" "$KIT/systemd/lak-llama-swap.service.tmpl" "$out/systemd/lak-llama-swap.service"
+  python3 "$r" "$KIT/systemd/lak-llama-warmup.service.tmpl" "$out/systemd/lak-llama-warmup.service"
+  echo "rendered into $out/"
+  if [ "$apply" = 1 ]; then
+    echo "changes that --apply will make (diff vs what is installed now):"
+    for pair in "$out/llama-swap.yaml:$swap_dir/llama-swap.yaml" "$out/opencode/opencode.jsonc:$oc_dir/opencode.jsonc" \
+                "$out/opencode/AGENTS.md:$oc_dir/AGENTS.md" "$out/systemd/lak-llama-swap.service:$sd_dir/lak-llama-swap.service" \
+                "$out/systemd/lak-llama-warmup.service:$sd_dir/lak-llama-warmup.service"; do
+      src="${pair%%:*}"; dst="${pair#*:}"
+      if [ -e "$dst" ]; then diff -u "$dst" "$src" || true; else echo "+++ new file: $dst"; fi
+    done
+    if [ "$yes" != 1 ]; then
+      printf 'Apply these changes? Existing files are backed up. [y/N] '
+      read -r ans </dev/tty 2>/dev/null || ans=n
+      case "$ans" in y|Y|yes) ;; *) echo "aborted; nothing written outside ./out/"; return 0;; esac
+    fi
+    place() { # src dst
+      mkdir -p "$(dirname "$2")"
+      if [ -e "$2" ] && ! cmp -s "$1" "$2"; then cp -a "$2" "$2.bak-$(date +%Y%m%d%H%M%S)"; echo "  backed up $2"; fi
+      cp "$1" "$2"; echo "  installed $2"
+    }
+    place "$out/llama-swap.yaml" "$swap_dir/llama-swap.yaml"
+    place "$out/opencode/opencode.jsonc" "$oc_dir/opencode.jsonc"
+    place "$out/opencode/AGENTS.md" "$oc_dir/AGENTS.md"
+    place "$out/systemd/lak-llama-swap.service" "$sd_dir/lak-llama-swap.service"
+    place "$out/systemd/lak-llama-warmup.service" "$sd_dir/lak-llama-warmup.service"
+    echo "next: systemctl --user daemon-reload && systemctl --user enable --now lak-llama-swap"
+  else
+    echo "dry run: pass --apply to install into ~/.config (existing files are backed up)"
+  fi
+}
+
+cmd="${1:-}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  install-llama) install_llama ;;
+  install-swap)  install_swap ;;
+  render)        render "$@" ;;
+  tune)          exec python3 "$KIT/scripts/tune.py" "$@" ;;
+  doctor)        exec python3 "$KIT/scripts/doctor.py" "$@" ;;
+  eval)          exec python3 "$KIT/eval/run_eval.py" "$@" ;;
+  ocrun)         exec "$KIT/bin/ocrun" "$@" ;;
+  claude)        exec "$KIT/claude-code/claude-local" "$@" ;;
+  ""|-h|--help|help) usage ;;
+  *) echo "unknown command: $cmd" >&2; usage >&2; exit 2 ;;
+esac

@@ -1,0 +1,1 @@
+"""wordstat: word frequency counter."""
